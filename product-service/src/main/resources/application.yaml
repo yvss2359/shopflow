@@ -1,3 +1,45 @@
+# =============================================================
+# PRODUCT SERVICE — Configuration de base
+# =============================================================
+
 spring:
   application:
     name: product-service
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+
+server:
+  port: 8082
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Product Service
+    description: Gestion du catalogue produits avec pagination et filtres
+    version: 1.0.0
+
+logging:
+  level:
+    root: INFO
+    com.shopflow: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

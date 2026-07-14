@@ -1,3 +1,48 @@
+# =============================================================
+# NOTIFICATION SERVICE — Configuration de base
+# Ce service est purement réactif : il n'expose presque pas
+# d'API REST, il ÉCOUTE des events Kafka et agit dessus.
+# =============================================================
+
 spring:
   application:
     name: notification-service
+
+  # -----------------------------------------------------------
+  # MONGODB — configuration commune
+  # MongoDB est parfait ici : une notification = un document JSON
+  # On stocke l'historique de toutes les notifications envoyées.
+  # -----------------------------------------------------------
+  data:
+    mongodb:
+      database: notif_db
+      auto-index-creation: true   # crée les index @Indexed automatiquement
+
+
+server:
+  port: 8084
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Notification Service
+    description: Consommateur Kafka — envoie emails et notifications push
+    version: 1.0.0
+
+logging:
+  level:
+    root: INFO
+    com.shopflow: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

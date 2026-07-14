@@ -1,0 +1,60 @@
+# =============================================================
+# NOTIFICATION SERVICE — Configuration DEV
+# =============================================================
+
+spring:
+
+  # -----------------------------------------------------------
+  # MONGODB — connexion locale (Docker)
+  # URI format : mongodb://user:password@host:port/database
+  # authSource=admin : la collection d'auth est dans "admin"
+  # -----------------------------------------------------------
+  data:
+    mongodb:
+      uri: mongodb://shopflow:shopflow123@localhost:27017/notif_db?authSource=admin
+
+  # -----------------------------------------------------------
+  # KAFKA CONSUMER
+  # Ce service écoute deux topics :
+  #   - order-created    : envoie un email de confirmation
+  #   - user-registered  : envoie un email de bienvenue
+  #
+  # group-id : identifie ce consumer group.
+  # Si tu lances 2 instances du service, Kafka répartit
+  # automatiquement les messages entre elles.
+  #
+  # auto-offset-reset: earliest
+  #   → si ce service redémarre, relit depuis le début du topic
+  #   → utile en dev pour ne pas rater de messages
+  # -----------------------------------------------------------
+  kafka:
+    bootstrap-servers: localhost:9093
+    consumer:
+      group-id: notification-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        # Indique à JsonDeserializer quels packages Java sont autorisés
+        spring.json.trusted.packages: "com.shopflow.*"
+        # Ne pas mapper vers une classe Java spécifique → on reçoit un Map
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: java.util.Map
+
+# -----------------------------------------------------------
+# TOPICS KAFKA — noms des topics écoutés
+# Définis ici pour pouvoir les changer facilement sans
+# modifier le code Java (injection via @Value)
+# -----------------------------------------------------------
+shopflow:
+  kafka:
+    topics:
+      order-created: order-created
+      user-registered: user-registered
+
+logging:
+  level:
+    root: INFO
+    com.shopflow: DEBUG
+    org.springframework.kafka: DEBUG   # voit les messages Kafka reçus
+    org.mongodb.driver: INFO

@@ -1,0 +1,70 @@
+# =============================================================
+# USER SERVICE — Configuration DEV
+# Surcharge application.yml pour l'environnement local.
+# Activé avec : -Dspring.profiles.active=dev
+# ou dans IntelliJ : Run Config → Active profiles → dev
+# =============================================================
+
+spring:
+
+  # -----------------------------------------------------------
+  # BASE DE DONNÉES — PostgreSQL local (Docker)
+  # Le conteneur "users-db" est accessible via localhost:5432
+  # car le service Spring tourne sur ton Mac (pas dans Docker).
+  # Si tu dockerises le service aussi → remplace localhost par users-db
+  # -----------------------------------------------------------
+  datasource:
+    url: jdbc:postgresql://localhost:5432/users_db
+    username: shopflow
+    password: shopflow123
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      # HikariCP = pool de connexions par défaut de Spring Boot
+      maximum-pool-size: 5        # max 5 connexions simultanées en dev
+      minimum-idle: 2             # garde 2 connexions ouvertes en permanence
+      connection-timeout: 30000   # 30s avant d'abandonner une tentative de connexion
+      pool-name: UserServicePool
+
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true   # affiche les requêtes SQL générées par Hibernate en dev
+
+  # -----------------------------------------------------------
+  # KAFKA PRODUCER
+  # Le user-service publie un event "user-registered" quand
+  # un nouvel utilisateur s'inscrit.
+  # Port 9093 = port exposé vers le Mac dans docker-compose.yml
+  # -----------------------------------------------------------
+  kafka:
+    bootstrap-servers: localhost:9093
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      # Garantit qu'un message est bien reçu par le broker avant de continuer
+      acks: all
+      retries: 3
+      properties:
+        spring.json.add.type.headers: false   # pas de headers de type Java dans les messages
+
+# -----------------------------------------------------------
+# JWT — configuration du token d'authentification
+# secret : clé de signature (min 256 bits pour HS256)
+# expiration : durée de vie du token en millisecondes
+#   86400000 = 24 heures
+# -----------------------------------------------------------
+jwt:
+  secret: shopflow-super-secret-key-dev-must-be-at-least-256-bits-long-for-hs256
+  expiration: 86400000
+
+# -----------------------------------------------------------
+# LOGS — plus verbeux en dev pour déboguer facilement
+# -----------------------------------------------------------
+logging:
+  level:
+    root: INFO
+    com.shopflow: DEBUG                        # tous tes logs en DEBUG
+    org.springframework.security: DEBUG        # voit les décisions de sécurité
+    org.hibernate.SQL: DEBUG                   # voit les requêtes SQL
+    org.hibernate.type.descriptor.sql: TRACE   # voit les valeurs des paramètres SQL

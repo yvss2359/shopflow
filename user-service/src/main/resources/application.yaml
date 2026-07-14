@@ -1,3 +1,76 @@
+# =============================================================
+# USER SERVICE — Configuration de base
+# Chargé dans TOUS les environnements (dev, prod).
+# Ne contient jamais de secrets ni d'URLs spécifiques à un env.
+# =============================================================
+
 spring:
   application:
-    name: user-service
+    name: user-service   # Identité du service — utilisé par Eureka et Zipkin
+
+  # -----------------------------------------------------------
+  # JPA / HIBERNATE — paramètres communs à tous les envs
+  # L'URL de la BDD est dans application-dev.yml
+  # -----------------------------------------------------------
+  jpa:
+    hibernate:
+      # update  : crée/modifie les tables selon les entités Java (DEV)
+      # validate: vérifie sans modifier (PROD)
+      # none    : ne touche pas à la BDD (PROD strict)
+      ddl-auto: update
+    show-sql: false        # true en dev seulement (voir application-dev.yml)
+    open-in-view: false    # bonne pratique : désactive le lazy loading hors transaction
+    properties:
+      hibernate:
+        format_sql: true
+        # Le dialect est défini dans application-dev.yml selon la BDD
+
+
+# -----------------------------------------------------------
+# SERVEUR
+# -----------------------------------------------------------
+server:
+  port: 8081
+  servlet:
+    context-path: /   # pas de préfixe — la Gateway gère le routing
+  error:
+    include-message: always
+    include-binding-errors: always
+
+# -----------------------------------------------------------
+# ACTUATOR — endpoints de monitoring
+# /actuator/health  → état du service (utilisé par Jenkins, Docker)
+# /actuator/info    → infos sur la version
+# /actuator/metrics → métriques pour Grafana
+# -----------------------------------------------------------
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always   # affiche l'état de la BDD, Kafka, etc.
+  info:
+    env:
+      enabled: true
+
+# -----------------------------------------------------------
+# INFOS DU SERVICE (exposées via /actuator/info)
+# -----------------------------------------------------------
+info:
+  app:
+    name: User Service
+    description: Gestion des utilisateurs et authentification JWT
+    version: 1.0.0
+
+# -----------------------------------------------------------
+# LOGS — niveau de base (surchargé en dev)
+# -----------------------------------------------------------
+logging:
+  level:
+    root: INFO
+    com.shopflow: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

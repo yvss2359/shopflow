@@ -1,0 +1,69 @@
+# =============================================================
+# ORDER SERVICE — Configuration DEV
+# =============================================================
+
+spring:
+
+  # -----------------------------------------------------------
+  # BASE DE DONNÉES — Deuxième PostgreSQL (port 5433 sur le Mac)
+  # Attention : port 5433 et non 5432 (déjà pris par users-db)
+  # -----------------------------------------------------------
+  datasource:
+    url: jdbc:postgresql://localhost:5433/orders_db
+    username: shopflow
+    password: shopflow123
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      connection-timeout: 30000
+      pool-name: OrderServicePool
+
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+
+  # -----------------------------------------------------------
+  # KAFKA PRODUCER
+  # Publie "order-created" quand une commande est passée.
+  # Le notification-service consomme ce topic pour envoyer un email.
+  # Airflow le consomme aussi pour alimenter le data lake.
+  # -----------------------------------------------------------
+  kafka:
+    bootstrap-servers: localhost:9093
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        spring.json.add.type.headers: false
+
+# -----------------------------------------------------------
+# FEIGN — URL de product-service en dev
+# En dev on appelle directement le service par son URL locale.
+# Avec Eureka (Jour 4), on n'aura plus besoin de cette URL —
+# Feign la découvrira automatiquement via le nom du service.
+# -----------------------------------------------------------
+feign:
+  client:
+    config:
+      product-service:
+        url: http://localhost:8082
+
+# -----------------------------------------------------------
+# JWT — valide les tokens reçus dans les requêtes entrantes
+# -----------------------------------------------------------
+jwt:
+  secret: shopflow-super-secret-key-dev-must-be-at-least-256-bits-long-for-hs256
+
+logging:
+  level:
+    root: INFO
+    com.shopflow: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql: TRACE
+    io.github.resilience4j: DEBUG   # voit l'état du circuit breaker

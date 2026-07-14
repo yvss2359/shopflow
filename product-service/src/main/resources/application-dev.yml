@@ -1,0 +1,60 @@
+# =============================================================
+# PRODUCT SERVICE — Configuration DEV
+# Base de données : MySQL (différente de PostgreSQL pour varier
+# les technos et apprendre les deux drivers JPA)
+# =============================================================
+
+spring:
+
+  # -----------------------------------------------------------
+  # BASE DE DONNÉES — MySQL local (Docker)
+  # allowPublicKeyRetrieval=true : requis par MySQL 8 en local
+  # useSSL=false : pas de SSL en dev
+  # serverTimezone=UTC : évite les problèmes de timezone
+  # -----------------------------------------------------------
+  datasource:
+    url: jdbc:mysql://localhost:3306/products_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
+    username: shopflow
+    password: shopflow123
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      connection-timeout: 30000
+      pool-name: ProductServicePool
+
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+    show-sql: true
+
+  # -----------------------------------------------------------
+  # KAFKA PRODUCER
+  # Le product-service publie un event "product-viewed" à chaque
+  # consultation d'une fiche produit (utile pour les analytics).
+  # -----------------------------------------------------------
+  kafka:
+    bootstrap-servers: localhost:9093
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        spring.json.add.type.headers: false
+
+# -----------------------------------------------------------
+# JWT — le product-service valide les tokens mais n'en génère pas
+# Le secret DOIT être identique à celui du user-service
+# -----------------------------------------------------------
+jwt:
+  secret: shopflow-super-secret-key-dev-must-be-at-least-256-bits-long-for-hs256
+
+logging:
+  level:
+    root: INFO
+    com.shopflow: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql: TRACE
