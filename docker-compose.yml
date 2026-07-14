@@ -1,0 +1,242 @@
+# =============================================================
+# RÉSEAU
+# Tous les conteneurs communiquent entre eux via ce réseau.
+# Un service parle à un autre par son NOM de service
+# (ex: "users-db", "kafka") et non par "localhost".
+# =============================================================
+networks:
+  shopflow-network:
+    driver: bridge
+
+# =============================================================
+# VOLUMES
+# Les données survivent aux redémarrages des conteneurs.
+# Sans volume, tout est perdu à chaque "docker-compose down".
+# =============================================================
+volumes:
+  postgres_users_data:
+  postgres_orders_data:
+  mysql_products_data:
+  mongo_notif_data:
+  kafka_data:
+  zookeeper_data:
+  minio_data:
+
+# =============================================================
+# SERVICES
+# =============================================================
+services:
+
+  # -----------------------------------------------------------
+  # BASE DE DONNÉES — USER SERVICE
+  # PostgreSQL sur le port 5432
+  # Le user-service se connecte via :
+  #   jdbc:postgresql://users-db:5432/users_db
+  # -----------------------------------------------------------
+  users-db:
+    image: postgres:16-alpine
+    container_name: shopflow-users-db
+    environment:
+      POSTGRES_DB: users_db
+      POSTGRES_USER: shopflow
+      POSTGRES_PASSWORD: shopflow123
+    ports:
+      - "5432:5432"        # host:container
+    volumes:
+      - postgres_users_data:/var/lib/postgresql/data
+    networks:
+      - shopflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shopflow -d users_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -----------------------------------------------------------
+  # BASE DE DONNÉES — ORDER SERVICE
+  # Deuxième instance PostgreSQL sur le port 5433
+  # Port différent pour éviter le conflit avec users-db sur ton Mac
+  # -----------------------------------------------------------
+  orders-db:
+    image: postgres:16-alpine
+    container_name: shopflow-orders-db
+    environment:
+      POSTGRES_DB: orders_db
+      POSTGRES_USER: shopflow
+      POSTGRES_PASSWORD: shopflow123
+    ports:
+      - "5433:5432"        # 5433 sur le Mac -> 5432 dans le conteneur
+    volumes:
+      - postgres_orders_data:/var/lib/postgresql/data
+    networks:
+      - shopflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shopflow -d orders_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -----------------------------------------------------------
+  # BASE DE DONNÉES — PRODUCT SERVICE
+  # MySQL sur le port 3306
+  # Le product-service se connecte via :
+  #   jdbc:mysql://products-db:3306/products_db
+  # -----------------------------------------------------------
+  products-db:
+    image: mysql:8.4
+    container_name: shopflow-products-db
+    environment:
+      MYSQL_DATABASE: products_db
+      MYSQL_USER: shopflow
+      MYSQL_PASSWORD: shopflow123
+      MYSQL_ROOT_PASSWORD: root123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_products_data:/var/lib/mysql
+    networks:
+      - shopflow-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "shopflow", "-pshopflow123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -----------------------------------------------------------
+  # BASE DE DONNÉES — NOTIFICATION SERVICE
+  # MongoDB sur le port 27017
+  # Le notification-service se connecte via :
+  #   mongodb://shopflow:shopflow123@notif-db:27017/notif_db
+  # -----------------------------------------------------------
+  notif-db:
+    image: mongo:7.0
+    container_name: shopflow-notif-db
+    environment:
+      MONGO_INITDB_DATABASE: notif_db
+      MONGO_INITDB_ROOT_USERNAME: shopflow
+      MONGO_INITDB_ROOT_PASSWORD: shopflow123
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_notif_data:/data/db
+    networks:
+      - shopflow-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -----------------------------------------------------------
+  # ZOOKEEPER
+  # Coordinateur requis par Kafka pour gérer le cluster.
+  # Les services Spring Boot ne parlent JAMAIS à Zookeeper
+  # directement — uniquement à Kafka.
+  # -----------------------------------------------------------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: shopflow-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+    networks:
+      - shopflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "zookeeper-shell localhost:2181 ls / > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  # -----------------------------------------------------------
+  # KAFKA
+  # Le broker de messages central du projet.
+  # Les services Spring Boot publient/consomment sur :
+  #   bootstrap-servers: kafka:9092
+  #
+  # KAFKA_ADVERTISED_LISTENERS :
+  #   - INTERNAL://kafka:9092  -> pour les conteneurs Docker
+  #   - EXTERNAL://localhost:9093 -> pour ton Mac (tests manuels)
+  # -----------------------------------------------------------
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: shopflow-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"   # interne Docker
+      - "9093:9093"   # accès depuis le Mac
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - shopflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # -----------------------------------------------------------
+  # KAFKA UI
+  # Interface web pour visualiser les topics, messages et
+  # consumer groups sans ligne de commande.
+  # Accès : http://localhost:8090
+  # -----------------------------------------------------------
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: shopflow-kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: shopflow-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    ports:
+      - "8090:8080"
+    networks:
+      - shopflow-network
+
+  # -----------------------------------------------------------
+  # MINIO — S3 LOCAL
+  # Stockage objet compatible AWS S3 à 100%.
+  # Le même code qui écrit sur MinIO en local fonctionne
+  # sur AWS S3 en production sans modification.
+  #
+  # Console web  : http://localhost:9001
+  #   login : minioadmin / minioadmin123
+  # API S3       : http://localhost:9000
+  # -----------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: shopflow-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000"   # API S3
+      - "9001:9001"   # Console web
+    volumes:
+      - minio_data:/data
+    networks:
+      - shopflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
