@@ -1,0 +1,20 @@
+# Maven
+target/
+*.class
+*.jar
+*.war
+
+# IntelliJ / VS Code
+.idea/
+*.iml
+.vscode/
+
+# Spring Boot
+*.log
+application-prod.yml
+
+# Docker
+.env
+
+# OS
+.DS_Store
