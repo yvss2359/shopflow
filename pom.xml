@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ============================================================
+         PARENT SPRING BOOT
+         Spring Boot 4.0.7 gère automatiquement les versions de
+         toutes ses dépendances (JPA, Security, Web, Kafka, etc.)
+         Tu n'as JAMAIS besoin de mettre de version sur ces libs.
+    ============================================================ -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.0.7</version>
+        <relativePath/>
+    </parent>
+
+    <!-- ============================================================
+         IDENTITÉ DU PROJET PARENT
+         packaging = pom : ce fichier ne produit pas de JAR.
+         Il sert uniquement à déclarer les modules et centraliser
+         les versions des dépendances.
+    ============================================================ -->
+    <groupId>com.shopflow</groupId>
+    <artifactId>shopflow-parent</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>ShopFlow :: Parent</name>
+    <description>Projet microservices Spring Boot + Data Engineering</description>
+
+    <!-- ============================================================
+         MODULES ENFANTS
+         Maven les compile dans cet ordre. common-lib doit être
+         en premier car les services en dépendent.
+    ============================================================ -->
+    <modules>
+        <module>common-lib</module>
+        <module>user-service</module>
+        <module>product-service</module>
+        <module>order-service</module>
+        <module>notification-service</module>
+    </modules>
+
+    <!-- ============================================================
+         PROPRIÉTÉS GLOBALES
+         Définies ici une seule fois, utilisées partout.
+    ============================================================ -->
+    <properties>
+        <java.version>21</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <!-- Spring Cloud (Gateway, Eureka, Feign, Config Server) -->
+        <!-- Version compatible Spring Boot 4.x -->
+        <spring-cloud.version>2025.0.0</spring-cloud.version>
+
+        <!-- Versions des librairies tierces -->
+        <jjwt.version>0.12.6</jjwt.version>
+        <mapstruct.version>1.6.3</mapstruct.version>
+        <testcontainers.version>1.20.4</testcontainers.version>
+    </properties>
+
+    <!-- ============================================================
+         DEPENDENCY MANAGEMENT
+         Centralise les VERSIONS uniquement.
+         Les modules déclarent la dépendance SANS <version> —
+         Maven vient la chercher ici automatiquement.
+    ============================================================ -->
+    <dependencyManagement>
+        <dependencies>
+
+            <!-- Spring Cloud BOM (Bill of Materials) -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Notre bibliothèque interne commune -->
+            <dependency>
+                <groupId>com.shopflow</groupId>
+                <artifactId>common-lib</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- JWT (génération et validation de tokens) -->
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-impl</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-jackson</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+
+            <!-- MapStruct (mapping DTO <-> Entity) -->
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
+
+            <!-- Testcontainers (tests d'intégration avec vraie DB) -->
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+
+    <!-- ============================================================
+         DÉPENDANCES COMMUNES
+         Présentes automatiquement dans TOUS les modules enfants.
+         Ne mets ici que ce dont CHAQUE service a besoin.
+    ============================================================ -->
+    <dependencies>
+
+        <!-- Lombok : @Getter, @Setter, @Builder, @Slf4j, etc. -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Spring Boot Test : JUnit 5 + Mockito + AssertJ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <!-- ============================================================
+         BUILD — PLUGINS COMMUNS
+    ============================================================ -->
+    <build>
+        <pluginManagement>
+            <plugins>
+
+                <!-- Compile avec Java 21 et active les paramètres de noms
+                     (utile pour Spring Data et les constructeurs) -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <configuration>
+                        <source>${java.version}</source>
+                        <target>${java.version}</target>
+                        <parameters>true</parameters>
+                        <annotationProcessorPaths>
+                            <!-- Lombok doit être déclaré avant MapStruct -->
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                            </path>
+                            <path>
+                                <groupId>org.mapstruct</groupId>
+                                <artifactId>mapstruct-processor</artifactId>
+                                <version>${mapstruct.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
+                    </configuration>
+                </plugin>
+
+                <!-- Surefire : exécute les tests JUnit 5 -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <configuration>
+                        <useModulePath>false</useModulePath>
+                    </configuration>
+                </plugin>
+
+            </plugins>
+        </pluginManagement>
+    </build>
+
+</project>
