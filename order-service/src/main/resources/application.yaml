@@ -1,3 +1,80 @@
+# =============================================================
+# ORDER SERVICE — Configuration de base
+# Ce service est le plus "riche" : il a une BDD, un Kafka
+# producer ET communique avec product-service via OpenFeign.
+# =============================================================
+
 spring:
   application:
     name: order-service
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+
+server:
+  port: 8083
+
+# -----------------------------------------------------------
+# FEIGN CLIENT — configuration commune
+# OpenFeign permet d'appeler product-service comme si c'était
+# une méthode Java locale. Spring génère l'implémentation HTTP.
+# -----------------------------------------------------------
+feign:
+  client:
+    config:
+      default:
+        connect-timeout: 5000   # 5s pour établir la connexion
+        read-timeout: 5000      # 5s pour lire la réponse
+  circuitbreaker:
+    enabled: true               # active Resilience4j sur tous les clients Feign
+
+# -----------------------------------------------------------
+# RESILIENCE4J — Circuit Breaker
+# Protège order-service si product-service est en panne.
+# États : CLOSED (normal) → OPEN (en panne) → HALF_OPEN (test)
+# -----------------------------------------------------------
+resilience4j:
+  circuitbreaker:
+    instances:
+      product-service:                  # nom du client Feign
+        sliding-window-size: 10         # évalue sur les 10 derniers appels
+        failure-rate-threshold: 50      # ouvre le circuit si 50% d'échecs
+        wait-duration-in-open-state: 10s  # attend 10s avant de retester
+        permitted-number-of-calls-in-half-open-state: 3
+  retry:
+    instances:
+      product-service:
+        max-attempts: 3           # 3 tentatives avant d'abandonner
+        wait-duration: 1s         # attend 1s entre chaque tentative
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Order Service
+    description: Gestion des commandes avec machine à états et messaging Kafka
+    version: 1.0.0
+
+logging:
+  level:
+    root: INFO
+    com.shopflow: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
